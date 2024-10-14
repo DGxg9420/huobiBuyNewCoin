@@ -9,13 +9,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            container: "ubuntu:18.04" # ubuntu 18.04 作为容器
     runs-on: ${{ matrix.os }}
-
-    container:
-      image: ${{ matrix.container }} # 针对Linux使用低版本ubuntu
 
     steps:
       # Check out the repository content
