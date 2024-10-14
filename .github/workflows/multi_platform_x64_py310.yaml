@@ -8,21 +8,13 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
       # Check out the repository content
       - name: Checkout repository
         uses: actions/checkout@v4
-      # Error: dyld[1590]: Library not loaded: /usr/local/opt/gettext/lib/libintl.8.dylib
-      # Install gettext on macOS (解决macOS中libintl.8.dylib丢失问题)
-      - name: Install gettext on macOS
-        if: runner.os == 'macOS'
-        # 确保路径包含在环境变量中
-        run: |
-           sudo mkdir -p /usr/local/libodep/lib
-           sudo ln -s /opt/local/lib/libintl.8.dylib /usr/local/libodep/lib/libintl.8.dylib
 
       # setup python
       - name: Set up Python 3.10
