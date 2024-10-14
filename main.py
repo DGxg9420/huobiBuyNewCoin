@@ -9,6 +9,7 @@ Created on 2024/10/13 23:34
 ---------
 @email: ssson966@gmail.com
 """
+import os
 import hmac
 import yaml
 import hashlib
@@ -262,19 +263,29 @@ if __name__ == "__main__":
     # 为终端设置处理对象
     appLogger.addHandler(console_handle)
     
-    # 读取key配置
-    with open("config.yaml", "r") as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-
-    ACCESS_KEY = config["ACCESS_KEY"]
-    SECRET_KEY = config["SECRET_KEY"]
-
-    coinType = input("请输入要抢新币的币种，例如(puffer)：").strip()
-    multiple = float(input("请输入以开盘价几倍抢币，例如(2.5)：").strip())
-    testMode = input("是否为测试模式，是请输入1，否请输入0，默认为0：").strip()
-    testMode = bool(int(testMode if testMode else "0"))
-    appLogger.info(f"抢新币种为：{coinType},倍数为：{multiple},测试模式为：{testMode}")
-    # 创建 API 客户端实例
-    client = HuobiAPIClient(ACCESS_KEY, SECRET_KEY, appLogger)
-    client.grab_new_coins(coinType=coinType, multiple=multiple, test=testMode)
+    if not os.path.exists("config.yaml"):
+        init_config = {
+            "ACCESS_KEY": "your_access_key",
+            "SECRET_KEY": "your_secret_key"
+        }
+        # 写入key配置
+        with open("config.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(init_config, f)
+        input("请先在config.yaml中填写ACCESS_KEY和SECRET_KEY，按回车键继续...")
+    else:
+        # 读取key配置
+        with open("config.yaml", "r") as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+    
+        ACCESS_KEY = config["ACCESS_KEY"]
+        SECRET_KEY = config["SECRET_KEY"]
+    
+        coinType = input("请输入要抢新币的币种，例如(puffer)：").strip()
+        multiple = float(input("请输入以开盘价几倍抢币，例如(2.5)：").strip())
+        testMode = input("是否为测试模式，是请输入1，否请输入0，默认为0：").strip()
+        testMode = bool(int(testMode if testMode else "0"))
+        appLogger.info(f"抢新币种为：{coinType},倍数为：{multiple},测试模式为：{testMode}")
+        # 创建 API 客户端实例
+        client = HuobiAPIClient(ACCESS_KEY, SECRET_KEY, appLogger)
+        client.grab_new_coins(coinType=coinType, multiple=multiple, test=testMode)
     
