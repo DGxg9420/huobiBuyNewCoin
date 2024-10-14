@@ -31,5 +31,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: exe
-          path: build/windows-x64/windows_x64_py310.exe
+          path: build/main.exe
           include-hidden-files: true
