@@ -19,9 +19,12 @@ jobs:
       # Install gettext on macOS (解决macOS中libintl.8.dylib丢失问题)
       - name: Install gettext on macOS
         if: runner.os == 'macOS'
+        # 确保路径包含在环境变量中
         run: |
           brew install gettext
           brew link gettext --force
+          echo "/usr/local/opt/gettext/lib" >> $GITHUB_PATH 
+          export DYLD_LIBRARY_PATH="/usr/local/opt/gettext/lib:$DYLD_LIBRARY_PATH"
 
       # setup python
       - name: Set up Python 3.10
