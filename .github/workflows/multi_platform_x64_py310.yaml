@@ -21,10 +21,9 @@ jobs:
         if: runner.os == 'macOS'
         # 确保路径包含在环境变量中
         run: |
-          brew install gettext
-          brew link gettext --force
-          echo "/usr/local/opt/gettext/lib" >> $GITHUB_PATH 
-          export DYLD_LIBRARY_PATH="/usr/local/opt/gettext/lib:$DYLD_LIBRARY_PATH"
+           sudo bash
+           mkdir -p /usr/local/libodep/lib
+           ln -s /opt/local/lib/libintl.8.dylib /usr/local/libodep/lib/libintl.8.dylib
 
       # setup python
       - name: Set up Python 3.10
