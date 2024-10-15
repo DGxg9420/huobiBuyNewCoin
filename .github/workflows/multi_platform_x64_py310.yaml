@@ -41,13 +41,36 @@ jobs:
           script-name: main.py
           onefile: true
 
-      # Uploads artifact
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+#      # Uploads artifact
+#      - name: Upload artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: huobiBuyNewCoin-${{ matrix.os }}-x64
+#          path: |
+#            build/*.exe
+#            build/*.bin
+#            build/*.app/**/*
+#          include-hidden-files: true
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: huobiBuyNewCoin-${{ matrix.os }}-x64
-          path: |
-            build/*.exe
-            build/*.bin
-            build/*.app/**/*
-          include-hidden-files: true
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/*.exe
+          asset_name: huobiBuyNewCoin-${{ matrix.os }}-x64.exe
+          asset_content_type: application/octet-stream
+
