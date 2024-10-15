@@ -9,6 +9,7 @@ Created on 2024/10/13 23:34
 ---------
 @email: ssson966@gmail.com
 """
+import re
 import os
 import hmac
 import yaml
@@ -16,7 +17,7 @@ import hashlib
 import base64
 import urllib.parse
 import requests
-from datetime import datetime
+from datetime import datetime, date, timezone
 from decimal import Decimal, getcontext
 from traceback import format_exc
 from time import sleep, time
@@ -83,7 +84,7 @@ class HuobiAPIClient:
             "AccessKeyId": self.access_key,
             "SignatureMethod": "HmacSHA256",
             "SignatureVersion": "2",
-            "Timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+            "Timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         }
         
         # 发送请求
@@ -155,6 +156,11 @@ class HuobiAPIClient:
                 return info
             else:
                 return None
+            
+    @staticmethod
+    def str_to_timestamp_ms(s):
+        t = datetime.combine(date.today(), datetime.strptime(s, "%H:%M:%S").time())
+        return int(t.timestamp() * 1000)
     
     @warpFunc
     def take_order_spot_api(self, symbol: str, amount: str, price: str, ctype: str = "buy-limit"):
@@ -170,9 +176,35 @@ class HuobiAPIClient:
             result = resp.json()
             if result['status'] == "ok":
                 self.logger.info(f"成功下现货订单：{result['data']}")
+            elif result.get('err-code'):
+                # 开盘价格保护,睡眠后进行重试
+                if result.get('err-code') == "forbidden-trade-for-open-protect":
+                    err_msg = result.get('err-msg')
+                    priceProtectionCloseTime = re.search(r"\d{2}:\d{2}:\d{2}", err_msg)
+                    if priceProtectionCloseTime:
+                        priceProtectionCloseTime = priceProtectionCloseTime.group()
+                        priceProtectionCloseTimeStamp = self.str_to_timestamp_ms(priceProtectionCloseTime)
+                        now_time = int(time() * 1000)
+                        waitTime = priceProtectionCloseTimeStamp - now_time
+                        self.logger.warning(f"开盘价格保护，将在在{waitTime}毫秒后重试")
+                        sleep(waitTime / 1000)
+                        self.take_order_spot_api(symbol, amount, price, ctype)
+                # 下单价格高于开盘前下单限制价格
+                elif result.get('err-code') == "order-price-greater-than-limit":
+                    # 下单价格下调百分之10，再次尝试下单
+                    lessPrice = Decimal(price) * Decimal("0.9")
+                    self.logger.warning(f"下单价格下调百分之10，再次尝试下单：{lessPrice}")
+                    self.take_order_spot_api(symbol, amount, str(lessPrice), ctype)
+                elif result.get('err-code') == "order-price-less-than-limit":
+                    # 下单价格上调百分之10，再次尝试下单
+                    morePrice = Decimal(price) * Decimal("1.1")
+                    self.logger.warning(f"下单价格上调百分之10，再次尝试下单：{morePrice}")
+                    self.take_order_spot_api(symbol, amount, str(morePrice), ctype)
+                else:
+                    self.logger.warning(f"下单失败：{result.get('err-msg')}")
             else:
-                self.logger.warning(f"下单失败：{resp.json()}")
-    
+                self.logger.warning(f"下单失败, 未知错误：{result.json()}")
+                
     @warpFunc
     def get_order_info(self, order_id: str):
         resp = self.send_request("GET", f"/v1/order/orders/{order_id}")
