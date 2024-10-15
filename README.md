@@ -6,9 +6,9 @@
 
 ## 2.执行里面的可执行程序会自动生成config.yaml配置文件，在配置文件里输入你的[火币API](https://www.htx.com/zh-cn/opend/) Key。
 
-"""yaml
+```yaml
 ACCESS_KEY: YOUR_ACCESS_KEY
 SECRET_KEY: YOUR_SECRET_KEY
-"""
+```
 
 ## 3.再次运行可执行程序输入必要的信息就可以开启抢新币了。
