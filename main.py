@@ -187,19 +187,19 @@ class HuobiAPIClient:
                             priceProtectionCloseTimeStamp = self.str_to_timestamp_ms(priceProtectionCloseTime)
                             now_time = int(time() * 1000)
                             waitTime = priceProtectionCloseTimeStamp - now_time + 10  # 加10毫秒的误差，防止仍在开盘保护前下单
-                            self.logger.warning(f"开盘价格保护，将在在{waitTime}毫秒后重试")
+                            self.logger.warning(f"开盘价格保护，将在在{waitTime}毫秒后重试：{err_msg}")
                             sleep(abs(waitTime) / 1000)
                             self.take_order_spot_api(symbol, amount, price, ctype)
                     # 下单价格高于开盘前下单限制价格
                     elif result.get('err-code') == "order-price-greater-than-limit":
                         # 下单价格下调百分之10，再次尝试下单
                         lessPrice = Decimal(price) * Decimal("0.9")
-                        self.logger.warning(f"下单价格下调百分之10，再次尝试下单：{lessPrice}")
+                        self.logger.warning(f"下单价格下调百分之10，再次尝试以{lessPrice}下单：{result.get('err-msg')}")
                         self.take_order_spot_api(symbol, amount, str(lessPrice), ctype)
                     elif result.get('err-code') == "order-price-less-than-limit":
                         # 下单价格上调百分之10，再次尝试下单
                         morePrice = Decimal(price) * Decimal("1.1")
-                        self.logger.warning(f"下单价格上调百分之10，再次尝试下单：{morePrice}")
+                        self.logger.warning(f"下单价格上调百分之10，再次尝试以{morePrice}下单：{result.get('err-msg')}")
                         self.take_order_spot_api(symbol, amount, str(morePrice), ctype)
                     else:
                         self.logger.warning(f"下单失败：{result.get('err-msg')}，错误码：{result.get('err-code')}， 将继续重试下单。")
