@@ -163,7 +163,7 @@ class HuobiAPIClient:
         return int(t.timestamp() * 1000)
     
     @warpFunc
-    def take_order_spot_api(self, symbol: str, amount: str, price: str, ctype: str = "buy-limit"):
+    def take_order_spot_api(self, symbol: str, amount: str, price: str, ctype: str = "buy-limit", **kwargs):
         para = {
             "account-id": self.account_id,
             "symbol": symbol,
@@ -171,39 +171,48 @@ class HuobiAPIClient:
             "amount": amount,
             "price": price,
         }
-        resp = self.send_request("POST", "/v1/order/orders/place", params=para)
-        if resp.status_code == 200:
-            result = resp.json()
-            if result['status'] == "ok":
-                self.logger.info(f"成功下现货订单：{result['data']}")
-            elif result.get('err-code'):
-                # 开盘价格保护,睡眠后进行重试
-                if result.get('err-code') == "forbidden-trade-for-open-protect":
-                    err_msg = result.get('err-msg')
-                    priceProtectionCloseTime = re.search(r"\d{2}:\d{2}:\d{2}", err_msg)
-                    if priceProtectionCloseTime:
-                        priceProtectionCloseTime = priceProtectionCloseTime.group()
-                        priceProtectionCloseTimeStamp = self.str_to_timestamp_ms(priceProtectionCloseTime)
-                        now_time = int(time() * 1000)
-                        waitTime = priceProtectionCloseTimeStamp - now_time
-                        self.logger.warning(f"开盘价格保护，将在在{waitTime}毫秒后重试")
-                        sleep(waitTime / 1000)
+        try:
+            resp = self.send_request("POST", "/v1/order/orders/place", params=para)
+            if resp.status_code == 200:
+                result = resp.json()
+                if result['status'] == "ok":
+                    self.logger.info(f"成功下现货订单：{result['data']}")
+                elif result.get('err-code'):
+                    # 开盘价格保护,睡眠后进行重试
+                    if result.get('err-code') == "forbidden-trade-for-open-protect":
+                        err_msg = result.get('err-msg')
+                        priceProtectionCloseTime = re.search(r"\d{2}:\d{2}:\d{2}", err_msg)
+                        if priceProtectionCloseTime:
+                            priceProtectionCloseTime = priceProtectionCloseTime.group()
+                            priceProtectionCloseTimeStamp = self.str_to_timestamp_ms(priceProtectionCloseTime)
+                            now_time = int(time() * 1000)
+                            waitTime = priceProtectionCloseTimeStamp - now_time + 10  # 加10毫秒的误差，防止仍在开盘保护前下单
+                            self.logger.warning(f"开盘价格保护，将在在{waitTime}毫秒后重试")
+                            sleep(abs(waitTime) / 1000)
+                            self.take_order_spot_api(symbol, amount, price, ctype)
+                    # 下单价格高于开盘前下单限制价格
+                    elif result.get('err-code') == "order-price-greater-than-limit":
+                        # 下单价格下调百分之10，再次尝试下单
+                        lessPrice = Decimal(price) * Decimal("0.9")
+                        self.logger.warning(f"下单价格下调百分之10，再次尝试下单：{lessPrice}")
+                        self.take_order_spot_api(symbol, amount, str(lessPrice), ctype)
+                    elif result.get('err-code') == "order-price-less-than-limit":
+                        # 下单价格上调百分之10，再次尝试下单
+                        morePrice = Decimal(price) * Decimal("1.1")
+                        self.logger.warning(f"下单价格上调百分之10，再次尝试下单：{morePrice}")
+                        self.take_order_spot_api(symbol, amount, str(morePrice), ctype)
+                    else:
+                        self.logger.warning(f"下单失败：{result.get('err-msg')}，错误码：{result.get('err-code')}， 将继续重试下单。")
                         self.take_order_spot_api(symbol, amount, price, ctype)
-                # 下单价格高于开盘前下单限制价格
-                elif result.get('err-code') == "order-price-greater-than-limit":
-                    # 下单价格下调百分之10，再次尝试下单
-                    lessPrice = Decimal(price) * Decimal("0.9")
-                    self.logger.warning(f"下单价格下调百分之10，再次尝试下单：{lessPrice}")
-                    self.take_order_spot_api(symbol, amount, str(lessPrice), ctype)
-                elif result.get('err-code') == "order-price-less-than-limit":
-                    # 下单价格上调百分之10，再次尝试下单
-                    morePrice = Decimal(price) * Decimal("1.1")
-                    self.logger.warning(f"下单价格上调百分之10，再次尝试下单：{morePrice}")
-                    self.take_order_spot_api(symbol, amount, str(morePrice), ctype)
                 else:
-                    self.logger.warning(f"下单失败：{result.get('err-msg')}")
+                    self.logger.warning(f"下单失败, 未知错误：{result.json()}")
+        except Exception as e:
+            retry = kwargs.get("retry", 0)
+            self.logger.error(f"下单失败, 未知错误, 将进行第{retry}次重试：{e}")
+            if retry < 3:
+                self.take_order_spot_api(symbol, amount, price, ctype, retry=retry + 1)
             else:
-                self.logger.warning(f"下单失败, 未知错误：{result.json()}")
+                self.logger.error(f"下单失败，重试次数过多：{e}")
                 
     @warpFunc
     def get_order_info(self, order_id: str):
