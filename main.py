@@ -176,7 +176,7 @@ class HuobiAPIClient:
             if resp.status_code == 200:
                 result = resp.json()
                 if result['status'] == "ok":
-                    self.logger.info(f"成功下现货订单：{result['data']}")
+                    self.logger.info(f"成功以{price}价格下{amount}个{ctype}现货订单：{result['data']}")
                 elif result.get('err-code'):
                     # 开盘价格保护,睡眠后进行重试
                     if result.get('err-code') == "forbidden-trade-for-open-protect":
@@ -185,11 +185,16 @@ class HuobiAPIClient:
                         if priceProtectionCloseTime:
                             priceProtectionCloseTime = priceProtectionCloseTime.group()
                             priceProtectionCloseTimeStamp = self.str_to_timestamp_ms(priceProtectionCloseTime)
+                            self.logger.info(f"开盘价格保护，将在{priceProtectionCloseTime}时间戳结束。")
                             now_time = int(time() * 1000)
                             waitTime = priceProtectionCloseTimeStamp - now_time + 10  # 加10毫秒的误差，防止仍在开盘保护前下单
-                            self.logger.warning(f"开盘价格保护，将在在{waitTime}毫秒后重试：{err_msg}")
-                            sleep(abs(waitTime) / 1000)
-                            self.take_order_spot_api(symbol, amount, price, ctype)
+                            if waitTime > 0:
+                                self.logger.warning(f"开盘价格保护，将在在{waitTime}毫秒后重试：{err_msg}")
+                                sleep(waitTime / 1000)
+                                self.take_order_spot_api(symbol, amount, price, ctype)
+                            else:
+                                self.logger.error(f"开盘价格保护已经结束，一直重试下单直至成功")
+                                self.take_order_spot_api(symbol, amount, price, ctype)
                     # 下单价格高于开盘前下单限制价格
                     elif result.get('err-code') == "order-price-greater-than-limit":
                         # 下单价格下调百分之10，再次尝试下单
